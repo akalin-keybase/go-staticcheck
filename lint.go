@@ -64,6 +64,7 @@ var Funcs = map[string]lint.Func{
 	"SA5004": CheckLoopEmptyDefault,
 	"SA5005": CheckCyclicFinalizer,
 	"SA5006": CheckSliceOutOfBounds,
+	"SA5007": CheckDroppedError,
 
 	"SA9000": CheckDubiousSyncPoolPointers,
 	"SA9001": CheckDubiousDeferInChannelRangeLoop,
@@ -2023,6 +2024,93 @@ func CheckSliceOutOfBounds(f *lint.File) {
 				}
 			}
 		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckDroppedError(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		funcDecl, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+
+		results := funcDecl.Type.Results
+		if results == nil || results.NumFields() == 0 {
+			return false
+		}
+
+		lastResult := results.List[len(results.List)-1]
+		typeExpr := lastResult.Type
+		pos := f.Fset.Position(typeExpr.Pos())
+		end := f.Fset.Position(typeExpr.End())
+		src := f.Source()
+		typeSource := string(src[pos.Offset:end.Offset])
+		if typeSource != "error" {
+			return false
+		}
+
+		ast.Inspect(funcDecl.Body, func(node ast.Node) bool {
+			ifStmt, ok := node.(*ast.IfStmt)
+			if !ok {
+				return true
+			}
+
+			binaryExpr, ok := ifStmt.Cond.(*ast.BinaryExpr)
+			if !ok {
+				return false
+			}
+
+			if binaryExpr.Op != token.NEQ {
+				return false
+			}
+
+			leftIdent, ok := binaryExpr.X.(*ast.Ident)
+			if !ok {
+				return false
+			}
+
+			if string(leftIdent.Name) != "err" {
+				return false
+			}
+
+			rightIdent, ok := binaryExpr.Y.(*ast.Ident)
+			if !ok {
+				return false
+			}
+
+			if string(rightIdent.Name) != "nil" {
+				return false
+			}
+
+			ast.Inspect(ifStmt.Body, func(node ast.Node) bool {
+				returnStmt, ok := node.(*ast.ReturnStmt)
+				if !ok {
+					return true
+				}
+
+				results := returnStmt.Results
+				if len(results) == 0 {
+					return false
+				}
+
+				lastResult := results[len(results)-1]
+				lastIdent, ok := lastResult.(*ast.Ident)
+				if !ok {
+					return false
+				}
+
+				if string(lastIdent.Name) == "nil" {
+					f.Errorf(returnStmt, "error dropped")
+				}
+
+				return true
+			})
+
+			return true
+		})
+
 		return true
 	}
 	f.Walk(fn)
