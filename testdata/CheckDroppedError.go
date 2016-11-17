@@ -6,6 +6,12 @@ func fn1() error {
 		return err
 	}
 	if err != nil {
+		if err.Error() == "foo" {
+			return err
+		}
+		return nil
+	}
+	if err != nil {
 		return nil // MATCH /error dropped/
 	}
 	return nil

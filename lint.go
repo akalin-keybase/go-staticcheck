@@ -2084,29 +2084,31 @@ func CheckDroppedError(f *lint.File) {
 				return false
 			}
 
-			ast.Inspect(ifStmt.Body, func(node ast.Node) bool {
-				returnStmt, ok := node.(*ast.ReturnStmt)
-				if !ok {
-					return true
-				}
+			body := ifStmt.Body
+			if len(body.List) != 1 {
+				return false
+			}
 
-				results := returnStmt.Results
-				if len(results) == 0 {
-					return false
-				}
-
-				lastResult := results[len(results)-1]
-				lastIdent, ok := lastResult.(*ast.Ident)
-				if !ok {
-					return false
-				}
-
-				if string(lastIdent.Name) == "nil" {
-					f.Errorf(returnStmt, "error dropped")
-				}
-
+			bodyStmt := body.List[0]
+			returnStmt, ok := bodyStmt.(*ast.ReturnStmt)
+			if !ok {
 				return true
-			})
+			}
+
+			results := returnStmt.Results
+			if len(results) == 0 {
+				return false
+			}
+
+			lastResult := results[len(results)-1]
+			lastIdent, ok := lastResult.(*ast.Ident)
+			if !ok {
+				return false
+			}
+
+			if string(lastIdent.Name) == "nil" {
+				f.Errorf(returnStmt, "error dropped")
+			}
 
 			return true
 		})
