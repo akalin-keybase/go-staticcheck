@@ -2046,6 +2046,10 @@ func CheckDroppedError(f *lint.File) {
 		pos := f.Fset.Position(typeExpr.Pos())
 		end := f.Fset.Position(typeExpr.End())
 		src := f.Source()
+		if len(src) == 0 {
+			// This happens for cgo files.
+			return false
+		}
 		typeSource := string(src[pos.Offset:end.Offset])
 		if typeSource != "error" {
 			return false
