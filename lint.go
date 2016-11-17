@@ -2050,6 +2050,11 @@ func CheckDroppedError(f *lint.File) {
 			// This happens for cgo files.
 			return false
 		}
+		if pos.Offset >= len(src) || end.Offset >= len(src) {
+			// TODO: This happens sometimes with files
+			// with build flags; debug this.
+			return false
+		}
 		typeSource := string(src[pos.Offset:end.Offset])
 		if typeSource != "error" {
 			return false
